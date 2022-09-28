@@ -68,7 +68,7 @@ def create_posts(post: Post):
 
 @app.get("/posts/{id}")
 def get_post(id: int):
-    cursor.execute("""SELECT * FROM posts WHERE id = %s""", (str(id)))
+    cursor.execute("""SELECT * FROM posts WHERE id = %s""", (str(id),))
     post = cursor.fetchone()
 
     if not post:
@@ -80,31 +80,36 @@ def get_post(id: int):
     return {"post_details": post}
 
 
-# @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
-# def delete_post(id: int):
-#     # delete post
-#     # find the index
-#     index = find_index_post(id)
-#     my_posts.pop(index)
-#     print(index)
-#     if index == 0:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail=f"post with id:  {id}  was not found",
-#         )
-#     return Response(status_code=status.HTTP_204_NO_CONTENT)
+@app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(id: int):
+    cursor.execute("""DELETE FROM posts WHERE id = %s  returning*""", (str(id),))
+    deleted_post = cursor.fetchone()
+    conn.commit()
+    if deleted_post == None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"post with id:  {id}  was not found",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# @app.put("/posts/{id}")
-# def update_post(id: int, post: Post):
-#     # find the index
-#     index = find_index_post(id)
-#     if index == None:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail=f"post with id:  {id}  was not found",
-#         )
-#     print(post)
+@app.put("/posts/{id}")
+def update_post(id: int, post: Post):
+    cursor.execute(
+        """UPDATE posts SET title = %s, content = %s, published = %s WHERE id = %s returning*""",
+        (
+            post.title,
+            post.content,
+            post.published,
+            str(id),
+        ),
+    )
+    updated_post = cursor.fetchone()
+    conn.commit()
+    if updated_post == None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"post with id:  {id}  was not found",
+        )
 
-#     my_posts[index] = post
-#     return {"message": " post updated successfully", "data": my_posts[index]}
+    return {"message": " post updated successfully", "data": updated_post}

@@ -16,10 +16,14 @@
 #         # return {"message": f"post with id:  {id}  was not found"}
 #     return {"post_details": post}
 
+from ast import Try
 # from typing import Optional, Union
 # from fastapi import FastAPI, Response, status, HTTPException
 # from pydantic import BaseModel
 # from random import randrange
+# import psycopg2
+# from psycopg2.extras import RealDictCursor
+# import time
 
 # app = FastAPI()
 # #  title str, content str, Bool punlished
@@ -27,35 +31,26 @@
 #     title: str
 #     content: str
 #     published: bool = True
-#     rating: Optional[int] = None
 
 
-# my_posts = [
-#     {
-#         "title": "title of post 1",
-#         "content": "content of post 1",
-#         "id": 1,
-#     },
-#     {
-#         "title": "favorite foods",
-#         "content": "I Like Pizza",
-#         "id": 2,
-#     },
-# ]
+# while True:
+#     try:
 
+#         conn = psycopg2.connect(
+#             host="localhost",
+#             database="fastapi",
+#             user="postgres",
+#             password="12345",
+#             cursor_factory=RealDictCursor,
+#         )
+#         cursor = conn.cursor()
+#         # print("Database connection was succesfull!")
+#         break
 
-# def find_post(id):
-#     for p in my_posts:
-#         if p["id"] == id:
-#             return p
-
-
-# def find_index_post(id):
-#     for i, p in enumerate(my_posts):
-#         if p["id"] == id:
-#             return i
-#         else:
-#             return None
+#     except Exception as error:
+#         print("Error while connecting to database")
+#         print(error)
+#         time.sleep(2)
 
 
 # @app.get("/")
@@ -65,21 +60,35 @@
 
 # @app.get("/posts")
 # def get_posts():
-#     return {"data": my_posts}
+#     cursor.execute("""SELECT * FROM posts""")
+#     data = cursor.fetchall()
+
+#     return {"data": data}
 
 
 # @app.post("/posts", status_code=status.HTTP_201_CREATED)
 # def create_posts(post: Post):
-#     post_dict = post.dict()
-#     post_dict["id"] = randrange(0, 1000000)
-#     my_posts.append(post_dict)
-#     return {"data": post_dict}
+#     # cursor.execute(
+#     #     f"INSERT INTO posts (title, content, published) VALUES ({post.title, post.content, post.published})"
+#     # )
+
+#     cursor.execute(
+#         """
+#        INSERT INTO posts (title, content, published) VALUES (%s, %s, %s) RETURNING *
+#         """,
+#         (post.title, post.content, post.published),
+#     )
+#     new_post = cursor.fetchone()
+#     conn.commit()
+#     conn.close()
+#     return {"data": new_post}
 
 
 # @app.get("/posts/{id}")
 # def get_post(id: int):
-#     print(id)
-#     post = find_post(id)
+#     cursor.execute("""SELECT * FROM posts WHERE id = %s""", (str(id),))
+#     post = cursor.fetchone()
+
 #     if not post:
 #         raise HTTPException(
 #             status_code=status.HTTP_404_NOT_FOUND,
@@ -91,12 +100,10 @@
 
 # @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
 # def delete_post(id: int):
-#     # delete post
-#     # find the index
-#     index = find_index_post(id)
-#     my_posts.pop(index)
-#     print(index)
-#     if index == 0:
+#     cursor.execute("""DELETE FROM posts WHERE id = %s  returning*""", (str(id),))
+#     deleted_post = cursor.fetchone()
+#     conn.commit()
+#     if deleted_post == None:
 #         raise HTTPException(
 #             status_code=status.HTTP_404_NOT_FOUND,
 #             detail=f"post with id:  {id}  was not found",
@@ -106,14 +113,21 @@
 
 # @app.put("/posts/{id}")
 # def update_post(id: int, post: Post):
-#     # find the index
-#     index = find_index_post(id)
-#     if index == None:
+#     cursor.execute(
+#         """UPDATE posts SET title = %s, content = %s, published = %s WHERE id = %s returning*""",
+#         (
+#             post.title,
+#             post.content,
+#             post.published,
+#             str(id),
+#         ),
+#     )
+#     updated_post = cursor.fetchone()
+#     conn.commit()
+#     if updated_post == None:
 #         raise HTTPException(
 #             status_code=status.HTTP_404_NOT_FOUND,
 #             detail=f"post with id:  {id}  was not found",
 #         )
-#     print(post)
 
-#     my_posts[index] = post
-#     return {"message": " post updated successfully", "data": my_posts[index]}
+#     return {"message": " post updated successfully", "data": updated_post}
