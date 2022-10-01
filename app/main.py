@@ -1,23 +1,12 @@
-from turtle import pos, title
 from fastapi import FastAPI, Response, status, HTTPException, Depends
-from pydantic import BaseModel
-import psycopg2
-from psycopg2.extras import RealDictCursor
-import time
-from . import models
+from graphene import Schema
+from . import models, schemas
 from .databases import engine, get_db
 from sqlalchemy.orm import Session
-
+from typing import Optional, List
 
 models.Base.metadata.create_all(bind=engine)
-
 app = FastAPI()
-
-
-class Post(BaseModel):
-    title: str
-    content: str
-    published: bool = True
 
 
 @app.get("/")
@@ -25,33 +14,29 @@ def root():
     return {"message": "Welcome to apna api"}
 
 
-# @app.get("/sqlaclemy")
-# def test_db(db: Session = Depends(get_db)):
-#     post = db.query(models.Post).all()
-
-#     return {"data": "successfull"}
-
-
-@app.get("/posts")
+@app.get("/posts", status_code=status.HTTP_200_OK, response_model=List[schemas.Post1])
 def get_posts(db: Session = Depends(get_db)):
-    # cursor.execute("""SELECT * FROM posts""")
-    # data = cursor.fetchall()
-    data = db.query(models.Post).all()
-    return {"data": data}
+    post = db.query(models.Post).all()
+    return post
 
 
-@app.post("/posts", status_code=status.HTTP_201_CREATED)
-def create_posts(post: Post, db: Session = Depends(get_db)):
+@app.post("/posts", status_code=status.HTTP_201_CREATED, response_model=schemas.Post1)
+def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
 
     new_post = models.Post(**post.dict())
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
-    return {"data": new_post}
+    print(new_post.create_at)
+    return new_post
 
 
-@app.get("/posts/{id}")
-def get_post(id: int, db: Session = Depends(get_db)):
+@app.get("/posts/{id}", response_model=schemas.Post1)
+def get_post(
+    id: int,
+    db: Session = Depends(get_db),
+):
+
     post = db.query(models.Post).filter(models.Post.id == id).first()
 
     if not post:
@@ -60,15 +45,12 @@ def get_post(id: int, db: Session = Depends(get_db)):
             detail=f"post with id:  {id}  was not found",
         )
 
-    return {"post_details": post}
+    return post
 
 
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(id: int, db: Session = Depends(get_db)):
 
-    # cursor.execute("""DELETE FROM posts WHERE id = %s  returning*""", (str(id),))
-    # deleted_post = cursor.fetchone()
-    # conn.commit()
     post = db.query(models.Post).filter(models.Post.id == id)
     if post.first() == None:
         raise HTTPException(
@@ -80,8 +62,8 @@ def delete_post(id: int, db: Session = Depends(get_db)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.put("/posts/{id}")
-def update_post(id: int, post: Post, db: Session = Depends(get_db)):
+@app.put("/posts/{id}", response_class=schemas.Post1)
+def update_post(id: int, post: schemas.PostCreate, db: Session = Depends(get_db)):
 
     post_query = db.query(models.Post).filter(models.Post.id == id)
     post1 = post_query.first()
@@ -96,4 +78,13 @@ def update_post(id: int, post: Post, db: Session = Depends(get_db)):
     )
     db.commit()
 
-    return {"message": " post updated successfully", "data": post_query.first()}
+    return post_query.first()
+
+
+# @app.post("/users", status_code=status.HTTP_201_CREATED)
+# def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+#     new_user = models.User(**user.dict)
+#     db.add(new_user)
+#     db.commit()
+#     db.refresh(new_user)
+#     return new_user
